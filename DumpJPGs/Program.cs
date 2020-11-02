@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
-using System.Drawing; 
+using System.Drawing;
 using System.Windows.Media.Imaging;
 
 namespace DumpJPGs
@@ -32,7 +32,7 @@ namespace DumpJPGs
                 Console.WriteLine("The second parameter should be the output folder and must already exist (e.g. \"C:\\jpg out\" and in double quotes if there are spaces or punctuation.");
                 return;
             }
-            DirSearch(inFolder); 
+            DirSearch(inFolder);
         }
         static void DirSearch(string sDir)
         {
@@ -44,7 +44,13 @@ namespace DumpJPGs
                     {
                         if (Path.GetExtension(f) == ".lrprev")
                         {
-                            GetPreview(f, Path.Combine(outFolder, File.GetCreationTime(f).ToString("yyyyMMdd-hhmmss-") + Path.GetFileNameWithoutExtension(f)) + ".jpg");
+                            DateTime creationDateTime = File.GetCreationTime(f);
+                            string outputFolder = Path.Combine(outFolder, creationDateTime.ToString("yyyy-MM-dd"));
+
+                            if (!Directory.Exists(outputFolder)) 
+                                Directory.CreateDirectory(outputFolder);
+
+                            GetPreview(f, Path.Combine(outputFolder, creationDateTime.ToString("yyyyMMdd-hhmmss-") + Path.GetFileNameWithoutExtension(f)) + ".jpg", creationDateTime);
                         }
                     }
                     DirSearch(d);
@@ -52,11 +58,11 @@ namespace DumpJPGs
             }
             catch (System.Exception excpt)
             {
-                Console.WriteLine("Exception in DirSearch={0}",excpt.Message);
+                Console.WriteLine("Exception in DirSearch={0}", excpt.Message);
             }
         }
 
-        public static void GetPreview(string cacheFilePath, string outFilePath /*, string orientation */)
+        public static void GetPreview(string cacheFilePath, string outFilePath /*, string orientation */, DateTime CreationDateTime)
         {
             try
             {
@@ -76,7 +82,7 @@ namespace DumpJPGs
                 int lastpositionstart = -1;
                 int maxSizeSoFar = -1;
                 int maxPositionStart = -1;
-                int maxPositionSize = -1; 
+                int maxPositionSize = -1;
 
                 // First we will encounter the height/widths, then later (in binary) the start/len
                 for (int i = 0; i < bytes.Length - 1; i++)
@@ -110,23 +116,25 @@ namespace DumpJPGs
                         {
                             startLen[++lastpositionstart, Startpos] = holdstart;
                             startLen[lastpositionstart, Lenpos] = i - holdstart + 2;
-                            int area; 
-                            if((area = startLen[lastpositionstart,Heightpos] * startLen[lastpositionstart,Widthpos]) > maxSizeSoFar)
+                            int area;
+                            if ((area = startLen[lastpositionstart, Heightpos] * startLen[lastpositionstart, Widthpos]) > maxSizeSoFar)
                             {
                                 maxSizeSoFar = area;
                                 maxPositionStart = startLen[lastpositionstart, Startpos];
-                                maxPositionSize = startLen[lastpositionstart, Lenpos]; 
-                            } 
+                                maxPositionSize = startLen[lastpositionstart, Lenpos];
+                            }
                         }
                     }
                 }
 
                 using (MemoryStream ms = new MemoryStream(bytes, maxPositionStart, maxPositionSize))
-                    using (Image img = Image.FromStream(ms))
-                    {
-                        img.Save(outFilePath);
+                using (Image img = Image.FromStream(ms))
+                {
+                    img.Save(outFilePath);
                     Console.WriteLine("Wrote output file for {0} as {1}", cacheFilePath, outFilePath);
-                    }
+                }
+                
+                File.SetCreationTime(outFilePath, CreationDateTime);
             }
             catch (Exception e)
             {
